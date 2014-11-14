@@ -11,13 +11,17 @@ import socket
 import socks
 def create_connection(address, timeout=None, source_address=None):
 	sock = socks.socksocket()
-	sock.connect(address)
+	try:
+		sock.connect(address)
+	except ConnectionRefusedError:
+		raise ConnectionRefusedError("ERROR: Could not connect to TOR proxy")
 	return sock
+
 socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050, True)
 socket.socket = socks.socksocket
 socket.create_connection = create_connection
 
-import urllib.request
+import urllib.request, urllib.error
 from urllib.parse import urlencode
 
 class NoRedirection(urllib.request.HTTPErrorProcessor):
@@ -45,7 +49,7 @@ class Form():
 		for name in self.textFields:
 			dat += "\tText Field: " + name + "\n"
 		for password in self.passwordFields:
-			dat += "\tPassword Field: " + name + "\n"
+			dat += "\tPassword Field: " + password + "\n"
 		return dat
 
 	def buildData(self, fieldsToInject, randInjectLen=524288):
@@ -113,7 +117,7 @@ class PhishForms(HTMLParser):
 					dictAttrs[field] = content
 				if dictAttrs["type"] == "hidden":
 					self.currentForm.hiddenFields[dictAttrs["name"]] = dictAttrs["value"]
-				elif dictAttrs["type"] == "text":
+				elif dictAttrs["type"] == "text" or dictAttrs["type"] == "":
 					self.currentForm.textFields.append(dictAttrs["name"])
 				elif dictAttrs["type"] == "password":
 					self.currentForm.passwordFields.append(dictAttrs["name"])
@@ -134,10 +138,17 @@ class PhishForms(HTMLParser):
 if __name__=="__main__":
 	pf = PhishForms()
 	phishURL = input("What's the phishing site? ")
-	with urllib.request.urlopen(phishURL) as f:
-		dat = f.read()
-		print(dat[0:10])
-		pf.feed(dat.decode("ascii"))
+	try:
+		with urllib.request.urlopen(phishURL) as f:
+			dat = f.read()
+			print(dat[0:10])
+			pf.feed(dat.decode("ascii"))
+	except urllib.error.URLError as e:
+		print(e.reason)
+		exit(0)
+	except socks.Socks5Error as e:
+		print("ERROR: Proxy error:", str(e))
+		exit(0)
 	
 	forms = pf.forms
 	if pf.currentForm is not None:
@@ -209,13 +220,15 @@ if __name__=="__main__":
 
 	sendIter=0
 	while True:
-		print("Sending ", sendIter)
+		sendIter += 1
+		print("Sending Iteration Number:", sendIter)
 		if form.postOrGet == "get":
 			with urllib.request.urlopen(url + "?" + data) as f:
 				retval = f.read()
 		else:
 			with opener.open(url, bytes(data, "ascii")) as f:
 				retval = f.read()
-		print("Returned ", len(retval), " bytes (redirections usually return 0)")
-		print("Sleeping ", submitFrequency)
+		print("  Sent", round(len(data)/1024), "KB")
+		print("  Returned", len(retval), "bytes (redirections usually return 0)")
+		print("  Sleeping", submitFrequency, "seconds")
 		time.sleep(submitFrequency)

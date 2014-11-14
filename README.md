@@ -6,3 +6,5 @@ Also - if you're worried about whether TOR is working, I included testTor.py as 
 
 
 SocksiPy was created by Dan Haim, for Python2.  I did some initial 2-3 conversion, and had to change a lot of stuff in addition to the 2-3 changes.  There are things in there that I didn't change properly (URLs with ports in them, for example, seem to be broken).
+
+TODO: Use PySocks instead of SocksiPy.  Maybe.
